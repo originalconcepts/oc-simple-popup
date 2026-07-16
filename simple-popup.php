@@ -1,10 +1,12 @@
 <?php
 /**
  * Plugin Name: פופ אפ פשוט (Simple Popup)
+ * Plugin URI: https://github.com/originalconcepts/oc-simple-popup
  * Description: תוסף פופ אפ פשוט — תמונה או מוצרים, בחירת עמודים בחיפוש, קוקי לשליטה בתדירות.
- * Version: 1.5.0
+ * Version: 1.6.0
  * Author: Original Concepts
  * Text Domain: osp-simple-popup
+ * Update URI: https://github.com/originalconcepts/oc-simple-popup
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1234,3 +1236,119 @@ JS;
 }
 
 new OSP_Simple_Popup();
+
+/* ---------------- GitHub updater ---------------- */
+
+class OSP_GitHub_Updater {
+
+	const REPO   = 'originalconcepts/oc-simple-popup';
+	const BRANCH = 'main';
+	const CACHE  = 'osp_github_remote_version';
+
+	private $file;
+	private $basename;
+
+	public function __construct( $file ) {
+		$this->file     = $file;
+		$this->basename = plugin_basename( $file );
+		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_update' ) );
+		add_filter( 'plugins_api', array( $this, 'plugin_info' ), 10, 3 );
+		add_filter( 'upgrader_source_selection', array( $this, 'fix_folder_name' ), 10, 4 );
+		add_action( 'upgrader_process_complete', array( $this, 'flush_cache' ), 10, 2 );
+		add_action( 'load-update-core.php', array( $this, 'flush_cache_now' ) );
+	}
+
+	private function local_version() {
+		$data = get_file_data( $this->file, array( 'Version' => 'Version' ) );
+		return ! empty( $data['Version'] ) ? $data['Version'] : '0';
+	}
+
+	private function remote_version() {
+		$cached = get_transient( self::CACHE );
+		if ( false !== $cached ) {
+			return $cached;
+		}
+		$url = 'https://raw.githubusercontent.com/' . self::REPO . '/' . self::BRANCH . '/simple-popup.php';
+		$res = wp_remote_get( $url, array( 'timeout' => 10 ) );
+		$ver = '';
+		if ( ! is_wp_error( $res ) && 200 === wp_remote_retrieve_response_code( $res ) ) {
+			if ( preg_match( '/^\s*\*\s*Version:\s*([0-9][0-9.]*)/mi', wp_remote_retrieve_body( $res ), $mm ) ) {
+				$ver = trim( $mm[1] );
+			}
+		}
+		set_transient( self::CACHE, $ver, 6 * HOUR_IN_SECONDS );
+		return $ver;
+	}
+
+	private function package_url() {
+		return 'https://github.com/' . self::REPO . '/archive/refs/heads/' . self::BRANCH . '.zip';
+	}
+
+	public function check_update( $transient ) {
+		if ( empty( $transient->checked ) ) {
+			return $transient;
+		}
+		$local  = $this->local_version();
+		$remote = $this->remote_version();
+		$item   = (object) array(
+			'slug'        => 'simple-popup',
+			'plugin'      => $this->basename,
+			'new_version' => $remote ? $remote : $local,
+			'url'         => 'https://github.com/' . self::REPO,
+			'package'     => $this->package_url(),
+		);
+		if ( $remote && version_compare( $remote, $local, '>' ) ) {
+			$transient->response[ $this->basename ] = $item;
+			unset( $transient->no_update[ $this->basename ] );
+		} else {
+			$transient->no_update[ $this->basename ] = $item;
+			unset( $transient->response[ $this->basename ] );
+		}
+		return $transient;
+	}
+
+	public function plugin_info( $result, $action, $args ) {
+		if ( 'plugin_information' !== $action || empty( $args->slug ) || 'simple-popup' !== $args->slug ) {
+			return $result;
+		}
+		$remote = $this->remote_version();
+		return (object) array(
+			'name'          => 'פופ אפ פשוט (Simple Popup)',
+			'slug'          => 'simple-popup',
+			'version'       => $remote ? $remote : $this->local_version(),
+			'author'        => 'Original Concepts',
+			'homepage'      => 'https://github.com/' . self::REPO,
+			'download_link' => $this->package_url(),
+			'sections'      => array(
+				'description' => 'תוסף פופ אפ פשוט — תמונה או מוצרים, כפתור הנעה לפעולה, דיסקליימר, בחירת עמודים בחיפוש וקוקי לשליטה בתדירות. עדכונים נמשכים אוטומטית מריפו ה-GitHub של Original Concepts.',
+			),
+		);
+	}
+
+	public function fix_folder_name( $source, $remote_source, $upgrader, $hook_extra = array() ) {
+		if ( empty( $hook_extra['plugin'] ) || $hook_extra['plugin'] !== $this->basename ) {
+			return $source;
+		}
+		global $wp_filesystem;
+		$desired = trailingslashit( $remote_source ) . 'simple-popup';
+		if ( untrailingslashit( $source ) === $desired ) {
+			return $source;
+		}
+		if ( $wp_filesystem && $wp_filesystem->move( untrailingslashit( $source ), $desired ) ) {
+			return trailingslashit( $desired );
+		}
+		return new WP_Error( 'osp_rename_failed', 'שינוי שם תיקיית העדכון נכשל' );
+	}
+
+	public function flush_cache( $upgrader, $options ) {
+		if ( isset( $options['type'] ) && 'plugin' === $options['type'] ) {
+			delete_transient( self::CACHE );
+		}
+	}
+
+	public function flush_cache_now() {
+		delete_transient( self::CACHE );
+	}
+}
+
+new OSP_GitHub_Updater( __FILE__ );
