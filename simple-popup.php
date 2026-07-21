@@ -3,7 +3,7 @@
  * Plugin Name: פופ אפ פשוט (Simple Popup)
  * Plugin URI: https://github.com/originalconcepts/oc-simple-popup
  * Description: תוסף פופ אפ פשוט — תמונה או מוצרים, בחירת עמודים בחיפוש, קוקי לשליטה בתדירות.
- * Version: 1.6.0
+ * Version: 1.6.1
  * Author: Original Concepts
  * Text Domain: osp-simple-popup
  * Update URI: https://github.com/originalconcepts/oc-simple-popup
@@ -796,7 +796,7 @@ jQuery(function($){
 	}
 	function pvDisc(){
 		var t = $('#osp-in-disctext').val() || '';
-		$('#osp-pv-disc').html($.trim(t).split('\\n').join('<br>')).toggle(!!$.trim(t));
+		$('#osp-pv-disc').html($.trim(t).split(String.fromCharCode(10)).join('<br>')).toggle(!!$.trim(t));
 	}
 	function pvDiscStyle(){
 		$('#osp-pv-disc').css('font-size', (parseInt($('#osp-in-discsize').val(), 10) || 12) + 'px');
