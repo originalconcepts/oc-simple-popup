@@ -3,7 +3,7 @@
  * Plugin Name: פופ אפ פשוט (Simple Popup)
  * Plugin URI: https://github.com/originalconcepts/oc-simple-popup
  * Description: תוסף פופ אפ פשוט — תמונה או מוצרים, בחירת עמודים בחיפוש, קוקי לשליטה בתדירות.
- * Version: 1.6.1
+ * Version: 1.7.0
  * Author: Original Concepts
  * Text Domain: osp-simple-popup
  * Update URI: https://github.com/originalconcepts/oc-simple-popup
@@ -96,6 +96,8 @@ class OSP_Simple_Popup {
 			'disc_text'       => '',
 			'disc_size'       => 12,
 			'disc_color'      => '#666666',
+			'sched_on'        => '0',
+			'sched_end'       => '',
 		);
 		$meta = array();
 		foreach ( $defaults as $key => $default ) {
@@ -110,6 +112,24 @@ class OSP_Simple_Popup {
 
 	private static function hex_or( $value, $fallback ) {
 		return preg_match( '/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', (string) $value ) ? $value : $fallback;
+	}
+
+	/**
+	 * Unix timestamp after which the popup stops showing. 0 = no scheduled end.
+	 */
+	private static function expiry_ts( $m ) {
+		if ( '1' !== $m['sched_on'] || empty( $m['sched_end'] ) ) {
+			return 0;
+		}
+		if ( ! preg_match( '/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/', $m['sched_end'], $mm ) ) {
+			return 0;
+		}
+		try {
+			$dt = new DateTime( $mm[1] . ' ' . $mm[2] . ':59', wp_timezone() );
+			return $dt->getTimestamp();
+		} catch ( Exception $e ) {
+			return 0;
+		}
 	}
 
 	private static function radius_px( $radius ) {
@@ -233,6 +253,15 @@ class OSP_Simple_Popup {
 			<label class="osp-switch"><input type="checkbox" name="osp[active]" value="1" <?php checked( $is_active ); ?>><span class="osp-slider"></span></label>
 			<span style="margin-inline-start:8px;vertical-align:middle">פעיל</span>
 			<p class="description">כבוי = הפופ אפ נשמר אך לא מוצג באתר. נשמר בלחיצה על עדכון/פרסום. אפשר לשלוט גם מהמתג בטבלת הפופ אפים.</p>
+		</div>
+
+		<div class="osp-field">
+			<label class="osp-label">כיבוי אוטומטי (לא חובה)</label>
+			<label><input type="checkbox" name="osp[sched_on]" id="osp-in-schedon" value="1" <?php checked( $m['sched_on'], '1' ); ?>> להפסיק להציג בתאריך ושעה</label>
+			<p class="osp-sched-field <?php echo '1' === $m['sched_on'] ? '' : 'osp-hidden'; ?>" style="margin-top:8px">
+				<input type="datetime-local" name="osp[sched_end]" id="osp-in-schedend" value="<?php echo esc_attr( $m['sched_end'] ); ?>" style="width:220px">
+			</p>
+			<p class="description">לפי שעון האתר (<?php echo esc_html( wp_timezone_string() ); ?>). אחרי המועד הזה הפופ אפ יפסיק להופיע לבד, בלי לכבות ידנית.</p>
 		</div>
 
 		<div class="osp-field">
@@ -581,6 +610,8 @@ class OSP_Simple_Popup {
 			'disc_text'       => isset( $in['disc_text'] ) ? wp_kses_post( $in['disc_text'] ) : '',
 			'disc_size'       => isset( $in['disc_size'] ) ? max( 8, min( 30, absint( $in['disc_size'] ) ) ) : 12,
 			'disc_color'      => $hex( 'disc_color', '#666666' ),
+			'sched_on'        => ( isset( $in['sched_on'] ) && '1' === $in['sched_on'] ) ? '1' : '0',
+			'sched_end'       => ( isset( $in['sched_end'] ) && preg_match( '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/', $in['sched_end'] ) ) ? $in['sched_end'] : '',
 		);
 		foreach ( $fields as $key => $value ) {
 			update_post_meta( $post_id, '_osp_' . $key, $value );
@@ -607,6 +638,11 @@ class OSP_Simple_Popup {
 			echo '<label class="osp-switch"><input type="checkbox" class="osp-active-toggle" data-post="' . (int) $post_id . '" '
 				. checked( 'publish', get_post_status( $post_id ), false )
 				. '><span class="osp-slider"></span></label>';
+			$exp = self::expiry_ts( $this->get_meta( $post_id ) );
+			if ( $exp ) {
+				echo '<div style="font-size:11px;color:#787c82;margin-top:4px">עד ' . esc_html( date_i18n( 'j.n H:i', $exp ) )
+					. ( time() > $exp ? ' (הסתיים)' : '' ) . '</div>';
+			}
 			return;
 		}
 		if ( 'osp_device' === $col ) {
@@ -880,6 +916,9 @@ jQuery(function($){
 		pvFull();
 	});
 	$('#osp-in-imagefull').on('change', pvFull);
+	$('#osp-in-schedon').on('change', function(){
+		$('.osp-sched-field').toggleClass('osp-hidden', !this.checked);
+	});
 	$('#osp-in-imagelinkon').on('change', function(){
 		$('.osp-image-link-field').toggleClass('osp-hidden', !this.checked);
 	});
@@ -1013,6 +1052,10 @@ JS;
 					continue;
 				}
 			}
+			$exp = self::expiry_ts( $m );
+			if ( $exp && time() > $exp ) {
+				continue;
+			}
 			$to_render[] = array( 'post' => $popup, 'meta' => $m );
 		}
 
@@ -1055,7 +1098,7 @@ JS;
 			. ' osp-close--' . ( 'dark' === $m['close_style'] ? 'dark' : 'light' );
 		$device = in_array( $m['device'], array( 'desktop', 'mobile' ), true ) ? $m['device'] : 'both';
 		?>
-		<div class="osp-overlay" data-popup="<?php echo (int) $popup->ID; ?>" data-days="<?php echo (int) $m['cookie_days']; ?>" data-device="<?php echo esc_attr( $device ); ?>" role="dialog" aria-modal="true" aria-hidden="true">
+		<div class="osp-overlay" data-popup="<?php echo (int) $popup->ID; ?>" data-days="<?php echo (int) $m['cookie_days']; ?>" data-device="<?php echo esc_attr( $device ); ?>" data-expires="<?php echo (int) self::expiry_ts( $m ); ?>" role="dialog" aria-modal="true" aria-hidden="true">
 			<div class="<?php echo esc_attr( $box_classes ); ?>" style="<?php echo esc_attr( $style ); ?>">
 				<button type="button" class="<?php echo esc_attr( $close_classes ); ?>" aria-label="סגירה">&times;</button>
 				<?php if ( $m['title'] ) : ?>
@@ -1178,9 +1221,12 @@ JS;
 			}
 			function init(){
 				var isMobile = window.matchMedia('(max-width: 768px)').matches;
+				var nowSec = Math.floor(Date.now() / 1000);
 				var overlays = document.querySelectorAll('.osp-overlay');
 				for (var i = 0; i < overlays.length; i++) {
 					var ov = overlays[i];
+					var expires = parseInt(ov.getAttribute('data-expires'), 10) || 0;
+					if (expires && nowSec > expires) { continue; } // scheduled end passed (also covers cached pages)
 					var device = ov.getAttribute('data-device') || 'both';
 					if (device === 'desktop' && isMobile) { continue; }
 					if (device === 'mobile' && !isMobile) { continue; }
