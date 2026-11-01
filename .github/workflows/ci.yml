@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    # Every branch, not only main: this repository's only PHP runtime is this
+    # workflow, so a feature branch is exactly where the lint is worth having.
+    branches: [ '**' ]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: [ '7.4', '8.0', '8.1', '8.2', '8.3' ]
+    name: PHP ${{ matrix.php }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+
+      - name: Lint all PHP files
+        run: |
+          find . -name '*.php' -print0 | xargs -0 -n1 -P4 php -l
+
+      # The hub reads Version: from the header, the hub client reports OSP_VERSION:
+      # the two must never drift apart.
+      - name: Version header matches OSP_VERSION
+        run: |
+          header="$(grep -m1 -E '^\s*\*\s*Version:' simple-popup.php | sed -E 's/.*Version:\s*//' | tr -d '\r ')"
+          const="$(grep -m1 -oE "define\( 'OSP_VERSION', '[^']+'" simple-popup.php | sed -E "s/.*'([^']+)'$/\1/")"
+          echo "header=$header OSP_VERSION=$const"
+          test -n "$header" && test "$header" = "$const"
+
+  package:
+    runs-on: ubuntu-latest
+    name: Release zip
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The same zip the hub's package store serves: top folder
+      # simple-popup/, main file simple-popup.php.
+      - name: Build simple-popup.zip
+        run: bash bin/build-zip.sh
+
+      - name: Upload the zip as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simple-popup
+          path: dist/simple-popup.zip
+          if-no-files-found: error
