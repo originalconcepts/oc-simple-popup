@@ -8,20 +8,28 @@
  * account screen opens; an unreachable hub is survived on the cached copy, a
  * hub that refuses the key is not.
  *
- * The licence never switches popups off: they show, count and close with or
- * without it. It decides two things only — whether updates are offered from
- * the hub (updates_allowed()) and whether this site is listed in the owner's
- * OC Pluginz account.
+ * The licence decides whether popups show on the site (allows()), like שקוף:
+ * an active licence, or one past its end within the grace days. A declined
+ * charge (past_due), a suspended, deleted or expired licence, or a key the
+ * hub refused, stops them at the next check (hourly, or when the account
+ * screen opens); nothing is deleted, and they come back once the licence is
+ * active again. It also decides whether updates come from the hub
+ * (updates_allowed()) and lists this site in the owner's OC Pluginz account.
  *
- * Two kinds of installs share this code base:
- *   - Sites without a key: updates come from GitHub through
- *     OSP_GitHub_Updater as before, and nothing here nags them.
+ * Three kinds of installs share this code base:
+ *   - Sites that had popups before the licence existed (1.7 and earlier, our
+ *     own clients updating from GitHub): marked once as legacy() on the first
+ *     request of this version, they keep showing popups without a key and
+ *     get updates from GitHub through OSP_GitHub_Updater as before.
  *   - OC Pluginz customers: a key is connected on the account screen (or
- *     fixed as OSP_LICENSE_KEY in wp-config.php). Once the hub has answered
- *     for that key, connected() is true, OSP_Hub_Updater serves updates and
- *     the GitHub updater stays silent.
+ *     fixed as OSP_LICENSE_KEY in wp-config.php). The licence decides, also
+ *     on a legacy site once a key is set. Once the hub has answered for the
+ *     key, connected() is true, OSP_Hub_Updater serves updates and the GitHub
+ *     updater stays silent.
+ *   - A new install without a key: the popups can be built and previewed in
+ *     the admin, but are not shown on the site until a key is connected.
  * Agency mode (OC_PLUGINZ_AGENCY = true in wp-config.php) skips the hub
- * entirely: no calls, no notices, GitHub updates as before.
+ * entirely: no calls, no notices, popups always on, GitHub updates.
  *
  * What goes to the hub: the key, the product, this site's domain and address,
  * the plugin and WordPress versions. Nothing about visitors or popups.
@@ -36,6 +44,7 @@ class OSP_Hub {
 	const URL         = 'https://my.ocpluginz.com';
 	const PRODUCT     = 'oc-popup';
 	const OPTION      = 'osp_hub';
+	const LEGACY      = 'osp_hub_legacy';
 	const CRON        = 'osp_hub_refresh';
 	const ACCOUNT_URL = 'https://my.ocpluginz.com/account/';
 	const PRICING_URL = 'https://ocpluginz.com/oc-popup.html#pricing';
@@ -48,7 +57,11 @@ class OSP_Hub {
 	/** Codes that mean "this key buys nothing here": the cached entitlement goes. An outage keeps it. */
 	const REFUSALS = array( 'ocpzs_bad_key', 'ocpzs_inactive', 'ocpzs_seats_full', 'ocpzs_bad_product', 'ocpzs_bad_request' );
 
+	/** @var bool|null Per-request memo of allows(). */
+	private static $allowed = null;
+
 	public static function boot() {
+		add_action( 'init', array( __CLASS__, 'mark_install' ), 1 );
 		add_action( self::CRON, array( __CLASS__, 'cron' ) );
 		if ( is_admin() ) {
 			add_action( 'admin_init', array( __CLASS__, 'maybe_schedule' ) );
@@ -172,6 +185,26 @@ class OSP_Hub {
 
 	private static function patch( array $patch ) {
 		update_option( self::OPTION, array_merge( self::state(), $patch ), false );
+		self::$allowed = null;
+	}
+
+	/**
+	 * Once per site, on the first request of this version: did the site already have popups (it was
+	 * installed before the licence existed)? Then it stays legacy() for good. A new install has none
+	 * at that moment, because nothing can be built before the first admin request.
+	 */
+	public static function mark_install() {
+		if ( false !== get_option( self::LEGACY ) ) {
+			return;
+		}
+		global $wpdb;
+		$had = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s AND post_status <> 'auto-draft'", OSP_Simple_Popup::CPT ) );
+		add_option( self::LEGACY, $had > 0 ? '1' : '0', '', 'yes' );
+	}
+
+	/** A site that had popups before the licence existed: they keep showing without a key. */
+	public static function legacy() {
+		return '1' === get_option( self::LEGACY );
 	}
 
 	public static function key() {
@@ -211,6 +244,26 @@ class OSP_Hub {
 
 	public static function updates_allowed() {
 		return ! self::agency() && self::decide( self::state(), self::key(), time() );
+	}
+
+	/**
+	 * May popups show on the site right now? Agency mode: yes. No key: only on a legacy() site. A key:
+	 * the licence decides, the same rule as updates (decide()): active, or within its grace days.
+	 *
+	 * @return bool
+	 */
+	public static function allows() {
+		if ( null === self::$allowed ) {
+			if ( self::agency() ) {
+				$ok = true;
+			} elseif ( '' === self::key() ) {
+				$ok = self::legacy();
+			} else {
+				$ok = self::decide( self::state(), self::key(), time() );
+			}
+			self::$allowed = (bool) apply_filters( 'osp_hub_allows', $ok );
+		}
+		return self::$allowed;
 	}
 
 	public static function status() {
@@ -356,10 +409,12 @@ class OSP_Hub {
 		}
 		$previous = self::state();
 		update_option( self::OPTION, array( 'key' => $key ), false );
+		self::$allowed = null;
 		$res = self::request( 'POST', '/sdk/activate' );
 		$ok  = is_wp_error( $res ) ? $res : self::accept( $res );
 		if ( is_wp_error( $ok ) ) {
 			update_option( self::OPTION, $previous, false );
+			self::$allowed = null;
 			return new WP_Error( $ok->get_error_code(), self::friendly( $ok ) );
 		}
 		self::patch( array( 'activated_at' => time() ) );
@@ -417,6 +472,7 @@ class OSP_Hub {
 			self::request( 'POST', '/sdk/deactivate' );
 		}
 		delete_option( self::OPTION );
+		self::$allowed = null;
 		wp_clear_scheduled_hook( self::CRON );
 		return true;
 	}
@@ -434,36 +490,46 @@ class OSP_Hub {
 
 	/* ---------------- The notice ---------------- */
 
+	/** Why popups do not show on the site, in words the store owner can act on; '' when they show. */
+	public static function off_text() {
+		if ( self::allows() ) {
+			return '';
+		}
+		switch ( self::status() ) {
+			case 'no_key':
+				return 'הפופ אפים לא מוצגים באתר עד שמחברים רישיון OC Pluginz. אפשר לבנות ולערוך אותם כבר עכשיו.';
+			case 'refused':
+				return 'OC Pluginz לא קיבל את מפתח הרישיון של OC Popup, ולכן הפופ אפים לא מוצגים באתר. שום דבר לא נמחק.';
+			case 'unverified':
+				return 'מפתח הרישיון של OC Popup עוד לא אושר מול OC Pluginz, ולכן הפופ אפים לא מוצגים באתר.';
+			case 'suspended':
+				return 'הרישיון של OC Popup מושהה, ולכן הפופ אפים לא מוצגים באתר. שום דבר לא נמחק, והם יחזרו ברגע שהרישיון יחודש.';
+		}
+		return 'הרישיון של OC Popup לא בתוקף (תשלום שלא עבר או מנוי שהסתיים), ולכן הפופ אפים לא מוצגים באתר. שום דבר לא נמחק, והם יחזרו ברגע שהרישיון יחודש.';
+	}
+
 	/**
-	 * On the popup screens, when a connected licence brings no updates any more. A site without a key
-	 * is never nagged: it was never meant to have one.
+	 * On the popup screens: why the popups are off the site, or a warning while a licence is on its
+	 * grace days. A legacy site without a key is never nagged.
 	 */
 	public static function notice() {
-		if ( self::agency() || '' === self::key() || ! current_user_can( self::CAP ) ) {
+		if ( self::agency() || ! current_user_can( self::CAP ) ) {
 			return;
 		}
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		if ( ! $screen || OSP_Simple_Popup::CPT !== $screen->post_type || false !== strpos( (string) $screen->id, OSP_Hub_Admin::PAGE ) ) {
 			return;
 		}
-		$reason = self::status();
-		switch ( $reason ) {
-			case 'refused':
-				$text = 'OC Pluginz לא קיבל את מפתח הרישיון של OC Popup, ולכן העדכונים כבויים. הפופ אפים ממשיכים לעבוד.';
-				break;
-			case 'suspended':
-				$text = 'הרישיון של OC Popup מושהה, ולכן העדכונים כבויים. הפופ אפים ממשיכים לעבוד.';
-				break;
-			case 'expired':
-				$text = 'תוקף הרישיון של OC Popup הסתיים, ולכן העדכונים כבויים. הפופ אפים ממשיכים לעבוד; חדשו כדי לקבל עדכונים שוב.';
-				break;
-			case 'grace':
-				$text = 'תוקף הרישיון של OC Popup הסתיים והוא בימי חסד. חדשו עכשיו כדי להמשיך לקבל עדכונים.';
-				break;
-			default:
+		$text = self::off_text();
+		$kind = 'error';
+		if ( '' === $text ) {
+			if ( 'grace' !== self::status() ) {
 				return;
+			}
+			$text = 'תוקף הרישיון של OC Popup הסתיים והוא בימי חסד. חדשו עכשיו, אחרת הפופ אפים יפסיקו להופיע באתר.';
+			$kind = 'warning';
 		}
-		echo '<div class="notice notice-' . ( 'grace' === $reason ? 'warning' : 'error' ) . '"><p>' . esc_html( $text )
+		echo '<div class="notice notice-' . $kind . '"><p>' . esc_html( $text )
 			. ' <a href="' . esc_url( self::settings_url() ) . '">חשבון OC Pluginz</a></p></div>';
 	}
 }

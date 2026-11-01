@@ -126,13 +126,27 @@ class OSP_Hub_Admin {
 				<?php endif; ?>
 
 				<p class="description" style="max-width:680px">
-					הרישיון שולט בעדכונים ורושם את האתר הזה ב-OC Pluginz. הפופ אפים ממשיכים לעבוד גם בלעדיו.
+					הרישיון מפעיל את הפופ אפים באתר, מביא עדכונים ורושם את האתר הזה ב-OC Pluginz. אם הרישיון מושהה או לא שולם, הפופ אפים מפסיקים להופיע באתר עד שהוא מתחדש. שום דבר לא נמחק.
 				</p>
+
+				<?php if ( ! OSP_Hub::agency() ) : ?>
+					<?php $off = OSP_Hub::off_text(); ?>
+					<p style="font-size:14px;">
+						<?php if ( '' === $off ) : ?>
+							<strong style="color:#15803d">הפופ אפים מוצגים באתר.</strong>
+							<?php if ( '' === OSP_Hub::key() && OSP_Hub::legacy() ) : ?>
+								<span class="description">האתר הזה הותקן לפני מערכת הרישיונות, ולכן הם מוצגים בו גם בלי מפתח.</span>
+							<?php endif; ?>
+						<?php else : ?>
+							<strong style="color:#b32d2e"><?php echo esc_html( $off ); ?></strong>
+						<?php endif; ?>
+					</p>
+				<?php endif; ?>
 
 				<?php if ( OSP_Hub::agency() ) : ?>
 					<div class="card" style="max-width:none;">
 						<h2>מצב סוכנות</h2>
-						<p>OC_PLUGINZ_AGENCY מוגדר ב-wp-config.php: האתר הזה לא משתמש ברישיון OC Pluginz, והעדכונים מגיעים מ-GitHub.</p>
+						<p>OC_PLUGINZ_AGENCY מוגדר ב-wp-config.php: האתר הזה לא משתמש ברישיון OC Pluginz, הפופ אפים פעילים והעדכונים מגיעים מ-GitHub.</p>
 					</div>
 				<?php elseif ( '' === OSP_Hub::key() ) : ?>
 					<div class="card" style="max-width:none;">
@@ -256,7 +270,8 @@ class OSP_Hub_Admin {
 								<button class="button">בדיקת עדכונים</button>
 							</form>
 							<?php if ( ! $constant ) : ?>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( 'לנתק את האתר הזה מהרישיון? העדכונים מ-OC Pluginz ייפסקו עד שיחובר מפתח שוב. הפופ אפים ממשיכים לעבוד.' ); ?>');">
+								<?php $bye = OSP_Hub::legacy() ? 'לנתק את האתר הזה מהרישיון? העדכונים יחזרו להגיע מ-GitHub.' : 'לנתק את האתר הזה מהרישיון? הפופ אפים יפסיקו להופיע באתר והעדכונים מ-OC Pluginz ייפסקו, עד שיחובר מפתח שוב. שום דבר לא נמחק.'; ?>
+								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( $bye ); ?>');">
 									<?php wp_nonce_field( 'osp_hub_disconnect' ); ?>
 									<input type="hidden" name="action" value="osp_hub_disconnect">
 									<button class="button button-link-delete">ניתוק האתר הזה</button>
