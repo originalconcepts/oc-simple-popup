@@ -3,10 +3,11 @@
  * Plugin Name: OC Popup (פופ אפ פשוט)
  * Plugin URI: https://github.com/originalconcepts/oc-simple-popup
  * Description: תוסף פופ אפ פשוט — תמונה או מוצרים, בחירת עמודים בחיפוש, קוקי לשליטה בתדירות.
- * Version: 1.9.0
+ * Version: 1.10.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
- * Author: Original Concepts
+ * Author: OC Pluginz
+ * Author URI: https://ocpluginz.com
  * Text Domain: osp-simple-popup
  * Update URI: https://github.com/originalconcepts/oc-simple-popup
  */
@@ -15,10 +16,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'OSP_VERSION', '1.9.0' );
+define( 'OSP_VERSION', '1.10.0' );
 define( 'OSP_BASENAME', plugin_basename( __FILE__ ) );
 
 require_once __DIR__ . '/includes/hub/class-osp-hub.php';
+require_once __DIR__ . '/includes/hub/class-osp-notices.php';
 require_once __DIR__ . '/includes/hub/class-osp-hub-updater.php';
 require_once __DIR__ . '/includes/hub/class-osp-hub-admin.php';
 
@@ -1295,6 +1297,7 @@ new OSP_Simple_Popup();
 /* ---------------- OC Pluginz licence ---------------- */
 
 OSP_Hub::boot();
+OSP_Notices::boot();
 OSP_Hub_Updater::boot();
 OSP_Hub_Admin::boot();
 

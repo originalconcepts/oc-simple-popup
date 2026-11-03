@@ -3,8 +3,9 @@
  * The link to OC Pluginz (my.ocpluginz.com): the licence that brings updates
  * from the hub and lists this install among the hub's sites.
  *
- * One option (osp_hub) holds the key and a copy of the entitlement the hub
- * last answered with. The hub is asked again hourly (WP-Cron) and when the
+ * One option (osp_hub) holds the key, a copy of the entitlement the hub
+ * last answered with, and the hub's notices for the admin (OSP_Notices). The
+ * hub is asked again hourly (WP-Cron) and when the
  * account screen opens; an unreachable hub is survived on the cached copy, a
  * hub that refuses the key is not.
  *
@@ -370,6 +371,7 @@ class OSP_Hub {
 		self::patch(
 			array(
 				'entitlement' => $ent,
+				'notices'     => OSP_Notices::from_answer( $data ),
 				'latest'      => isset( $data['latest'] ) ? (string) $data['latest'] : ( isset( $s['latest'] ) ? (string) $s['latest'] : '' ),
 				'checked_at'  => time(),
 				'error'       => '',
