@@ -174,7 +174,7 @@ class OSP_Hub_Updater {
 			'name'          => 'OC Popup',
 			'slug'          => self::slug(),
 			'version'       => $info['version'],
-			'author'        => '<a href="https://originalconcepts.co.il">Original Concepts</a>',
+			'author'        => '<a href="https://ocpluginz.com">OC Pluginz</a>',
 			'homepage'      => $info['url'],
 			'requires'      => $info['requires'],
 			'tested'        => $info['tested'],
