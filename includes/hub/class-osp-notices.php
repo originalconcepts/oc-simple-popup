@@ -66,6 +66,8 @@ class OSP_Notices {
 				'url'      => preg_match( '#^https?://#i', $url ) ? $url : '',
 				'url_text' => trim( strip_tags( isset( $n['url_text'] ) ? (string) $n['url_text'] : '' ) ),
 				'image'    => preg_match( '#^https://#i', $img ) ? $img : '',
+				'style'    => ( isset( $n['style'] ) && 'dark' === $n['style'] ) ? 'dark' : 'light',
+				'brand'    => ( isset( $n['brand'] ) && preg_match( '#^https://#i', (string) $n['brand'] ) ) ? (string) $n['brand'] : '',
 			);
 			if ( count( $out ) >= self::MAX ) {
 				break;
@@ -123,15 +125,18 @@ class OSP_Notices {
 		self::styles();
 		foreach ( $list as $n ) {
 			$GLOBALS['ocpz_notices_shown'][ $n['id'] ] = true;
+
 			$dismiss = wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION . '&notice=' . rawurlencode( $n['id'] ) ), self::ACTION . '_' . $n['id'] );
-			$img     = (string) ( $n['image'] ?? '' );
-			echo '<div class="notice ocpz-notice ocpz-banner ocpz-t-' . esc_attr( $n['type'] ) . ' is-dismissible" data-ocpz-dismiss="' . esc_url( $dismiss ) . '">';
+			$img     = isset( $n['image'] ) ? (string) $n['image'] : '';
+			$brand   = isset( $n['brand'] ) ? (string) $n['brand'] : '';
+			$style   = ( isset( $n['style'] ) && 'dark' === $n['style'] ) ? 'dark' : 'light';
+			echo '<div class="notice ocpz-notice ocpz-banner ocpz-s-' . esc_attr( $style ) . ' ocpz-t-' . esc_attr( $n['type'] ) . ' is-dismissible" data-ocpz-dismiss="' . esc_url( $dismiss ) . '">';
 			if ( '' !== $img ) {
-				// The image lives on the hub; if it cannot load, the column goes and the text takes the width.
-				echo '<div class="ocpz-b-img"><img src="' . esc_url( $img ) . '" alt="" loading="lazy" onerror="this.parentNode.style.display=\'none\'" /></div>';
+				// The image lives on the hub; if it cannot load, the square goes and the text takes the width.
+				echo '<div class="ocpz-b-im"><img src="' . esc_url( $img ) . '" alt="" loading="lazy" onerror="this.parentNode.style.display=\'none\'" /></div>';
 			}
 			echo '<div class="ocpz-b-tx">';
-			echo '<p class="ocpz-b-src">' . esc_html( self::SOURCE ) . '</p>';
+			echo '<p class="ocpz-b-src">' . ( '' !== $brand ? '<img src="' . esc_url( $brand ) . '" alt="" onerror="this.style.display=\'none\'" />' : '' ) . esc_html( self::SOURCE ) . '</p>';
 			echo '<p class="ocpz-b-h">' . esc_html( $n['title'] ) . '</p>';
 			if ( '' !== $n['body'] ) {
 				echo '<p class="ocpz-b-b">' . nl2br( esc_html( $n['body'] ) ) . '</p>';
@@ -160,23 +165,41 @@ class OSP_Notices {
 		}
 		$GLOBALS['ocpz_notices_css'] = true;
 		echo '<style>'
-			. '.ocpz-banner{display:flex!important;align-items:stretch;padding:0!important;margin:14px 20px 14px 2px!important;background:#fff;border:1px solid #d9d4f5!important;border-inline-start:6px solid #534ab7!important;border-radius:4px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.06)}'
-			. '.ocpz-banner .ocpz-b-img{flex:0 0 200px;background:#eeedfe;border-inline-end:1px solid #e6e2f8}'
-			. '.ocpz-banner .ocpz-b-img img{display:block;width:200px;height:100%;min-height:124px;object-fit:cover}'
-			. '.ocpz-banner .ocpz-b-tx{flex:1;min-width:0;padding:16px 20px;padding-inline-end:48px;display:flex;flex-direction:column;justify-content:center}'
+			. '.ocpz-banner{position:relative;display:flex!important;align-items:center;gap:24px;padding:26px 28px 24px!important;padding-inline-end:56px!important;margin:16px 20px 16px 2px!important;border:1px solid #d9d4f5!important;border-radius:16px;background:linear-gradient(to right,#f7f5ff,#fff 70%);box-shadow:0 8px 24px rgba(83,74,183,.12);overflow:hidden;font-family:inherit}'
+			. '[dir=rtl] .ocpz-banner{background:linear-gradient(to left,#f7f5ff,#fff 70%)}'
+			. '.ocpz-banner::before{content:"";position:absolute;top:0;left:0;right:0;height:6px;background:linear-gradient(90deg,#f1564b,#bd419c,#7b3ff2)}'
+			. '.ocpz-banner .ocpz-b-im{flex:0 0 auto;width:128px;height:128px;border-radius:28px;background:#e9e5fb;display:flex;align-items:center;justify-content:center}'
+			. '.ocpz-banner .ocpz-b-im img{display:block;width:104px;height:104px;border-radius:24px;object-fit:cover;box-shadow:0 6px 16px rgba(38,33,92,.18)}'
+			. '.ocpz-banner .ocpz-b-tx{flex:1;min-width:0}'
 			. '.ocpz-banner p{margin:0!important;padding:0!important}'
-			. '.ocpz-banner .ocpz-b-src{font-size:12px;font-weight:600;color:#534ab7;margin-bottom:4px!important}'
-			. '.ocpz-banner .ocpz-b-h{font-size:18px;font-weight:700;color:#26215c;line-height:1.35}'
-			. '.ocpz-banner .ocpz-b-b{font-size:14px;color:#50556b;line-height:1.6;margin-top:4px!important}'
-			. '.ocpz-banner .ocpz-b-cta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px!important}'
-			. '.ocpz-banner .ocpz-b-p{background:#534ab7;color:#fff!important;text-decoration:none;font-size:14px;font-weight:600;padding:8px 16px;border-radius:8px;line-height:1.3}'
-			. '.ocpz-banner .ocpz-b-p:hover{background:#3c3489}'
-			. '.ocpz-banner .ocpz-b-g{color:#3c3489!important;background:#fff;border:1px solid #d9d4f5;text-decoration:none;font-size:14px;font-weight:600;padding:7px 14px;border-radius:8px;line-height:1.3}'
+			. '.ocpz-banner .ocpz-b-src{display:inline-flex!important;align-items:center;gap:8px;background:#fff;border:1px solid #d9d4f5;border-radius:999px;padding:4px 12px 4px 6px!important;font-size:12px;font-weight:600;color:#3c3489;line-height:1.4;margin:0 0 12px!important}'
+			. '.ocpz-banner .ocpz-b-src img{width:20px;height:20px;border-radius:50%;display:block}'
+			. '.ocpz-banner .ocpz-b-h{font-size:22px;font-weight:800;color:#26215c;line-height:1.3}'
+			. '.ocpz-banner .ocpz-b-b{font-size:15px;color:#50556b;line-height:1.6;max-width:62ch;margin-top:6px!important}'
+			. '.ocpz-banner .ocpz-b-cta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px!important}'
+			. '.ocpz-banner .ocpz-b-p{background:linear-gradient(90deg,#534ab7,#7b3ff2);color:#fff!important;text-decoration:none;font-size:15px;font-weight:700;padding:11px 22px;border-radius:10px;box-shadow:0 4px 12px rgba(83,74,183,.3);line-height:1.3}'
+			. '.ocpz-banner .ocpz-b-p:hover{filter:brightness(1.08)}'
+			. '.ocpz-banner .ocpz-b-g{color:#3c3489!important;background:#fff;border:1px solid #d9d4f5;text-decoration:none;font-size:15px;font-weight:600;padding:10px 18px;border-radius:10px;line-height:1.3}'
 			. '.ocpz-banner .ocpz-b-g:hover{background:#f3f1fc}'
-			. '.ocpz-banner.ocpz-t-success{border-inline-start-color:#15803d!important}.ocpz-banner.ocpz-t-success .ocpz-b-src{color:#15803d}.ocpz-banner.ocpz-t-success .ocpz-b-p{background:#15803d}'
-			. '.ocpz-banner.ocpz-t-warning{border-inline-start-color:#b45309!important}.ocpz-banner.ocpz-t-warning .ocpz-b-src{color:#b45309}.ocpz-banner.ocpz-t-warning .ocpz-b-p{background:#b45309}'
-			. '.ocpz-banner .notice-dismiss{top:4px}'
-			. '@media(max-width:640px){.ocpz-banner{flex-direction:column}.ocpz-banner .ocpz-b-img{flex-basis:auto}.ocpz-banner .ocpz-b-img img{width:100%;height:150px;min-height:0}}'
+			. '.ocpz-banner .notice-dismiss{top:14px}'
+			. '.ocpz-banner.ocpz-t-success::before{background:#15803d}.ocpz-banner.ocpz-t-success{background:linear-gradient(to right,#f1fbf4,#fff 70%);border-color:#bbf7d0!important}[dir=rtl] .ocpz-banner.ocpz-t-success{background:linear-gradient(to left,#f1fbf4,#fff 70%)}.ocpz-banner.ocpz-t-success .ocpz-b-im{background:#dcfce7}.ocpz-banner.ocpz-t-success .ocpz-b-src{color:#15803d;border-color:#bbf7d0}.ocpz-banner.ocpz-t-success .ocpz-b-p{background:#15803d;box-shadow:0 4px 12px rgba(21,128,61,.3)}.ocpz-banner.ocpz-t-success .ocpz-b-g{color:#15803d!important;border-color:#bbf7d0}'
+			. '.ocpz-banner.ocpz-t-warning::before{background:#b45309}.ocpz-banner.ocpz-t-warning{background:linear-gradient(to right,#fff8ef,#fff 70%);border-color:#fde7c7!important}[dir=rtl] .ocpz-banner.ocpz-t-warning{background:linear-gradient(to left,#fff8ef,#fff 70%)}.ocpz-banner.ocpz-t-warning .ocpz-b-im{background:#fdebd0}.ocpz-banner.ocpz-t-warning .ocpz-b-src{color:#b45309;border-color:#fde7c7}.ocpz-banner.ocpz-t-warning .ocpz-b-p{background:#b45309;box-shadow:0 4px 12px rgba(180,83,9,.3)}.ocpz-banner.ocpz-t-warning .ocpz-b-g{color:#b45309!important;border-color:#fde7c7}'
+			. '.ocpz-banner.ocpz-s-dark{background:#1b1b2f!important;border-color:#1b1b2f!important;box-shadow:0 12px 32px rgba(27,27,47,.28)}'
+			. '.ocpz-banner.ocpz-s-dark::before{display:none}'
+			. '.ocpz-banner.ocpz-s-dark::after{content:"";position:absolute;inset:auto -60px -120px auto;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(123,63,242,.45),transparent 65%);pointer-events:none}'
+			. '[dir=rtl] .ocpz-banner.ocpz-s-dark::after{inset:auto auto -120px -60px}'
+			. '.ocpz-banner.ocpz-s-dark .ocpz-b-im,.ocpz-banner.ocpz-s-dark .ocpz-b-tx{position:relative;z-index:1}'
+			. '.ocpz-banner.ocpz-s-dark .ocpz-b-im{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}'
+			. '.ocpz-banner.ocpz-s-dark .ocpz-b-im img{box-shadow:0 10px 30px rgba(123,63,242,.45)}'
+			. '.ocpz-banner.ocpz-s-dark .ocpz-b-src{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.14);color:#e6e2ff}'
+			. '.ocpz-banner.ocpz-s-dark .ocpz-b-h{color:#fff}'
+			. '.ocpz-banner.ocpz-s-dark .ocpz-b-b{color:#c3c0da}'
+			. '.ocpz-banner.ocpz-s-dark .ocpz-b-p{background:linear-gradient(90deg,#f1564b,#bd419c,#7b3ff2);box-shadow:none}'
+			. '.ocpz-banner.ocpz-s-dark .ocpz-b-g{color:#e6e2ff!important;background:transparent;border-color:rgba(255,255,255,.2)}'
+			. '.ocpz-banner.ocpz-s-dark .ocpz-b-g:hover{background:rgba(255,255,255,.08)}'
+			. '.ocpz-banner.ocpz-s-dark .notice-dismiss:before{color:#fff}'
+			. '.ocpz-banner.ocpz-s-dark .notice-dismiss{z-index:2}'
+			. '@media(max-width:640px){.ocpz-banner{flex-direction:column;align-items:flex-start;gap:16px}}'
 			. '</style>' . "\n";
 	}
 
