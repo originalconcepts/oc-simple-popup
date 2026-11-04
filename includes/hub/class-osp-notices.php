@@ -164,8 +164,9 @@ class OSP_Notices {
 			return;
 		}
 		$GLOBALS['ocpz_notices_css'] = true;
+		echo '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;700;800&amp;display=swap" />' . "\n";
 		echo '<style>'
-			. '.ocpz-banner{position:relative;display:flex!important;align-items:center;gap:24px;padding:26px 28px 24px!important;padding-inline-end:56px!important;margin:16px 20px 16px 2px!important;border:1px solid #d9d4f5!important;border-radius:16px;background:linear-gradient(to right,#f7f5ff,#fff 70%);box-shadow:0 8px 24px rgba(83,74,183,.12);overflow:hidden;font-family:inherit}'
+			. '.ocpz-banner{position:relative;display:flex!important;align-items:center;gap:24px;padding:26px 28px 24px!important;padding-inline-end:56px!important;margin:16px 20px 16px 2px!important;border:1px solid #d9d4f5!important;border-radius:16px;background:linear-gradient(to right,#f7f5ff,#fff 70%);box-shadow:0 8px 24px rgba(83,74,183,.12);overflow:hidden;font-family:"Noto Sans Hebrew",Heebo,-apple-system,"Segoe UI",Arial,sans-serif}'
 			. '[dir=rtl] .ocpz-banner{background:linear-gradient(to left,#f7f5ff,#fff 70%)}'
 			. '.ocpz-banner::before{content:"";position:absolute;top:0;left:0;right:0;height:6px;background:linear-gradient(90deg,#f1564b,#bd419c,#7b3ff2)}'
 			. '.ocpz-banner .ocpz-b-im{flex:0 0 auto;width:128px;height:128px;border-radius:28px;background:#e9e5fb;display:flex;align-items:center;justify-content:center}'
