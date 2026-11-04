@@ -1,7 +1,9 @@
 <?php
 /**
- * The "חשבון OC Pluginz" screen under the popups menu: connect a licence key,
- * see its status, sites and updates, refresh, check for updates, disconnect.
+ * The "חשבון OC Pluginz" screen: a hidden page of the suite's shared OC Pluginz
+ * menu (registered by OSP_Simple_Popup::register_with_suite(), reached through the
+ * tab next to the popups list): connect a licence key, see its status, sites and
+ * updates, refresh, check for updates, disconnect.
  * Opening the screen re-asks the hub when the last contact is older than ten
  * minutes. ("Check for updates" is OSP_Hub_Updater::check_now, shared with
  * the link in the plugin's row on the Plugins screen.)
@@ -19,22 +21,10 @@ class OSP_Hub_Admin {
 		if ( ! is_admin() ) {
 			return;
 		}
-		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_filter( 'plugin_action_links_' . OSP_BASENAME, array( __CLASS__, 'action_link' ) );
 		foreach ( array( 'osp_hub_connect', 'osp_hub_refresh', 'osp_hub_disconnect' ) as $action ) {
 			add_action( 'admin_post_' . $action, array( __CLASS__, 'handle' ) );
 		}
-	}
-
-	public static function menu() {
-		add_submenu_page(
-			'edit.php?post_type=' . OSP_Simple_Popup::CPT,
-			'חשבון OC Pluginz',
-			'חשבון OC Pluginz',
-			OSP_Hub::CAP,
-			self::PAGE,
-			array( __CLASS__, 'render' )
-		);
 	}
 
 	/** "רישיון" next to Deactivate on the Plugins screen. */

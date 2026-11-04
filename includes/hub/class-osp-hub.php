@@ -271,9 +271,9 @@ class OSP_Hub {
 		return self::reason( self::state(), self::key(), time() );
 	}
 
-	/** The account screen in this site's admin. */
+	/** The account screen in this site's admin: a hidden page of the suite's shared OC Pluginz menu. */
 	public static function settings_url() {
-		return admin_url( 'edit.php?post_type=' . OSP_Simple_Popup::CPT . '&page=' . OSP_Hub_Admin::PAGE );
+		return admin_url( 'admin.php?page=' . OSP_Hub_Admin::PAGE );
 	}
 
 	/* ---------------- The hub ---------------- */
@@ -511,15 +511,16 @@ class OSP_Hub {
 	}
 
 	/**
-	 * On the popup screens: why the popups are off the site, or a warning while a licence is on its
-	 * grace days. A legacy site without a key is never nagged.
+	 * On the popup screens (the list and the editor; the account page says it itself): why the popups
+	 * are off the site, or a warning while a licence is on its grace days. A legacy site without a key
+	 * is never nagged.
 	 */
 	public static function notice() {
 		if ( self::agency() || ! current_user_can( self::CAP ) ) {
 			return;
 		}
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		if ( ! $screen || OSP_Simple_Popup::CPT !== $screen->post_type || false !== strpos( (string) $screen->id, OSP_Hub_Admin::PAGE ) ) {
+		if ( ! $screen || OSP_Simple_Popup::CPT !== $screen->post_type ) {
 			return;
 		}
 		$text = self::off_text();
