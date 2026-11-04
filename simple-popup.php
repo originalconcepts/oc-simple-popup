@@ -3,7 +3,7 @@
  * Plugin Name: OC Popup (פופ אפ פשוט)
  * Plugin URI: https://github.com/originalconcepts/oc-simple-popup
  * Description: תוסף פופ אפ פשוט — תמונה או מוצרים, בחירת עמודים בחיפוש, קוקי לשליטה בתדירות.
- * Version: 1.10.4
+ * Version: 1.10.5
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author: OC Pluginz
@@ -16,7 +16,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'OSP_VERSION', '1.10.4' );
+// The suite's shared admin chrome (one "OC Pluginz" menu for every OC plugin on the site); the newest bundled copy wins.
+require_once __DIR__ . '/oc-pluginz/loader.php';
+
+define( 'OSP_VERSION', '1.10.5' );
 define( 'OSP_BASENAME', plugin_basename( __FILE__ ) );
 
 require_once __DIR__ . '/includes/hub/class-osp-hub.php';
@@ -31,6 +34,7 @@ class OSP_Simple_Popup {
 
 	public function __construct() {
 		add_action( 'init', array( $this, 'register_cpt' ) );
+		add_action( 'init', array( $this, 'register_with_suite' ), 20 ); // after register_cpt and the textdomains
 		add_action( 'add_meta_boxes', array( $this, 'add_metabox' ) );
 		add_action( 'save_post_' . self::CPT, array( $this, 'save_meta' ), 10, 2 );
 		add_filter( 'wp_insert_post_data', array( $this, 'force_status' ), 10, 2 );
@@ -60,15 +64,51 @@ class OSP_Simple_Popup {
 				'not_found'          => 'לא נמצאו פופ אפים',
 				'not_found_in_trash' => 'לא נמצאו פופ אפים בפח',
 				'menu_name'          => 'פופ אפים',
+				'all_items'          => 'פופ אפים', // the entry WordPress adds under OC Pluginz
 			),
 			'public'          => false,
 			'show_ui'         => true,
-			'show_in_menu'    => true,
-			'menu_icon'       => 'dashicons-format-image',
-			'menu_position'   => 58,
+			'show_in_menu'    => 'oc-pluginz', // the suite's shared menu (oc-pluginz/), not a top-level entry of its own
 			'supports'        => array( 'title' ),
 			'capability_type' => 'post',
 		) );
+	}
+
+	/**
+	 * The plugin in the suite's shared "OC Pluginz" menu (oc-pluginz/): WordPress adds the
+	 * list entry itself (show_in_menu), the library draws the tab strip (פופ אפים | חשבון
+	 * OC Pluginz) above the list, the editor and the account page, keeps the entry highlighted
+	 * there and shows the card on the overview. The account page is a hidden page of the suite.
+	 */
+	public function register_with_suite() {
+		if ( ! is_admin() ) {
+			return;
+		}
+		$type = get_post_type_object( self::CPT );
+		$cap  = ( $type && isset( $type->cap->edit_posts ) ) ? $type->cap->edit_posts : 'edit_posts';
+		oc_pluginz_register(
+			'oc-simple-popup',
+			array(
+				'name'         => 'Popup',
+				'menu'         => false,
+				'url'          => admin_url( 'edit.php?post_type=' . self::CPT ),
+				'submenu_file' => 'edit.php?post_type=' . self::CPT,
+				'screens'      => array( 'edit-' . self::CPT, self::CPT ),
+				'page_title'   => 'פופ אפים',
+				'capability'   => $cap,
+				'description'  => 'פופ אפים לאתר: תמונה או מוצרים, בחירת עמודים, מכשיר, תדירות ותזמון.',
+				'version'      => OSP_VERSION,
+				'account_url'  => OSP_Hub::settings_url(),
+				'pages'        => array(
+					array(
+						'slug'       => OSP_Hub_Admin::PAGE,
+						'title'      => 'חשבון OC Pluginz',
+						'capability' => OSP_Hub::CAP,
+						'callback'   => array( 'OSP_Hub_Admin', 'render' ),
+					),
+				),
+			)
+		);
 	}
 
 	/* ---------------- Meta ---------------- */
