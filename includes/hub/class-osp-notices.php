@@ -22,6 +22,8 @@ class OSP_Notices {
 
 	const META   = 'ocpz_dismissed_notices';
 	const ACTION = 'osp_dismiss_notice';
+	/** The line above the title: who is talking, in which plugin. */
+	const SOURCE = 'הודעה מ-OC Pluginz · OC Popup';
 	const TYPES  = array( 'info', 'success', 'warning' );
 	const MAX    = 5;
 
@@ -39,7 +41,7 @@ class OSP_Notices {
 	 * The notices in the hub's answer, cleaned: at most MAX, each with an id and a title.
 	 *
 	 * @param array $data The hub's answer.
-	 * @return array[] list of {id, type, title, body, url, url_text}
+	 * @return array[] list of {id, type, title, body, url, url_text, image}
 	 */
 	public static function from_answer( array $data ) {
 		$out = array();
@@ -55,6 +57,7 @@ class OSP_Notices {
 			}
 			$type  = isset( $n['type'] ) ? (string) $n['type'] : 'info';
 			$url   = isset( $n['url'] ) ? (string) $n['url'] : '';
+			$img   = isset( $n['image'] ) ? (string) $n['image'] : '';
 			$out[] = array(
 				'id'       => $id,
 				'type'     => in_array( $type, self::TYPES, true ) ? $type : 'info',
@@ -62,6 +65,7 @@ class OSP_Notices {
 				'body'     => trim( strip_tags( isset( $n['body'] ) ? (string) $n['body'] : '' ) ),
 				'url'      => preg_match( '#^https?://#i', $url ) ? $url : '',
 				'url_text' => trim( strip_tags( isset( $n['url_text'] ) ? (string) $n['url_text'] : '' ) ),
+				'image'    => preg_match( '#^https://#i', $img ) ? $img : '',
 			);
 			if ( count( $out ) >= self::MAX ) {
 				break;
@@ -116,28 +120,64 @@ class OSP_Notices {
 		if ( ! $list ) {
 			return;
 		}
+		self::styles();
 		foreach ( $list as $n ) {
 			$GLOBALS['ocpz_notices_shown'][ $n['id'] ] = true;
-			$type     = isset( $n['type'] ) ? (string) $n['type'] : 'info';
-			$body     = isset( $n['body'] ) ? (string) $n['body'] : '';
-			$url      = isset( $n['url'] ) ? (string) $n['url'] : '';
-			$url_text = isset( $n['url_text'] ) ? (string) $n['url_text'] : '';
-			$dismiss  = wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION . '&notice=' . rawurlencode( $n['id'] ) ), self::ACTION . '_' . $n['id'] );
-			echo '<div class="notice notice-' . esc_attr( $type ) . ' is-dismissible ocpz-notice" data-ocpz-dismiss="' . esc_url( $dismiss ) . '">';
-			echo '<p><strong>' . esc_html( isset( $n['title'] ) ? (string) $n['title'] : '' ) . '</strong>';
-			if ( '' !== $body ) {
-				echo '<br>' . nl2br( esc_html( $body ) );
+			$dismiss = wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION . '&notice=' . rawurlencode( $n['id'] ) ), self::ACTION . '_' . $n['id'] );
+			$img     = (string) ( $n['image'] ?? '' );
+			echo '<div class="notice ocpz-notice ocpz-banner ocpz-t-' . esc_attr( $n['type'] ) . ' is-dismissible" data-ocpz-dismiss="' . esc_url( $dismiss ) . '">';
+			if ( '' !== $img ) {
+				// The image lives on the hub; if it cannot load, the column goes and the text takes the width.
+				echo '<div class="ocpz-b-img"><img src="' . esc_url( $img ) . '" alt="" loading="lazy" onerror="this.parentNode.style.display=\'none\'" /></div>';
 			}
-			if ( '' !== $url ) {
-				echo ' <a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">' . esc_html( '' !== $url_text ? $url_text : $url ) . '</a>';
+			echo '<div class="ocpz-b-tx">';
+			echo '<p class="ocpz-b-src">' . esc_html( self::SOURCE ) . '</p>';
+			echo '<p class="ocpz-b-h">' . esc_html( $n['title'] ) . '</p>';
+			if ( '' !== $n['body'] ) {
+				echo '<p class="ocpz-b-b">' . nl2br( esc_html( $n['body'] ) ) . '</p>';
 			}
-			echo '</p><p style="margin:0 0 6px;color:#646970;font-size:12px">OC Pluginz</p></div>' . "\n";
+			echo '<p class="ocpz-b-cta">';
+			if ( '' !== $n['url'] ) {
+				echo '<a class="ocpz-b-p" href="' . esc_url( $n['url'] ) . '" target="_blank" rel="noopener">' . esc_html( '' !== $n['url_text'] ? $n['url_text'] : 'לפרטים' ) . '</a>';
+			}
+			echo '<a class="ocpz-b-g ocpz-b-ok" href="#" role="button">הבנתי</a>';
+			echo '</p></div></div>' . "\n";
 		}
 		if ( empty( $GLOBALS['ocpz_notices_js'] ) ) {
 			$GLOBALS['ocpz_notices_js'] = true;
-			// The X that WordPress adds to a dismissible notice only hides it; this tells the plugin to remember.
-			echo '<script>document.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest(".ocpz-notice .notice-dismiss"):null;if(!b)return;var n=b.closest(".ocpz-notice");if(n&&n.getAttribute("data-ocpz-dismiss")){fetch(n.getAttribute("data-ocpz-dismiss"),{credentials:"same-origin"}).catch(function(){});}});</script>' . "\n";
+			// "הבנתי" and the X WordPress adds both tell the plugin to remember the dismissal.
+			echo '<script>document.addEventListener("click",function(e){var t=e.target&&e.target.closest?e.target:null;if(!t)return;var ok=t.closest(".ocpz-banner .ocpz-b-ok"),x=t.closest(".ocpz-notice .notice-dismiss");if(!ok&&!x)return;var n=(ok||x).closest(".ocpz-notice");if(!n)return;if(ok){e.preventDefault();n.style.display="none";}var u=n.getAttribute("data-ocpz-dismiss");if(u){fetch(u,{credentials:"same-origin"}).catch(function(){});}});</script>' . "\n";
 		}
+	}
+
+	/**
+	 * The banner's stylesheet, once per request across OC plugins. Logical
+	 * properties, so the accent bar and the X land on the right side in RTL and LTR.
+	 */
+	private static function styles() {
+		if ( ! empty( $GLOBALS['ocpz_notices_css'] ) ) {
+			return;
+		}
+		$GLOBALS['ocpz_notices_css'] = true;
+		echo '<style>'
+			. '.ocpz-banner{display:flex!important;align-items:stretch;padding:0!important;margin:14px 20px 14px 2px!important;background:#fff;border:1px solid #d9d4f5!important;border-inline-start:6px solid #534ab7!important;border-radius:4px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.06)}'
+			. '.ocpz-banner .ocpz-b-img{flex:0 0 200px;background:#eeedfe;border-inline-end:1px solid #e6e2f8}'
+			. '.ocpz-banner .ocpz-b-img img{display:block;width:200px;height:100%;min-height:124px;object-fit:cover}'
+			. '.ocpz-banner .ocpz-b-tx{flex:1;min-width:0;padding:16px 20px;padding-inline-end:48px;display:flex;flex-direction:column;justify-content:center}'
+			. '.ocpz-banner p{margin:0!important;padding:0!important}'
+			. '.ocpz-banner .ocpz-b-src{font-size:12px;font-weight:600;color:#534ab7;margin-bottom:4px!important}'
+			. '.ocpz-banner .ocpz-b-h{font-size:18px;font-weight:700;color:#26215c;line-height:1.35}'
+			. '.ocpz-banner .ocpz-b-b{font-size:14px;color:#50556b;line-height:1.6;margin-top:4px!important}'
+			. '.ocpz-banner .ocpz-b-cta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px!important}'
+			. '.ocpz-banner .ocpz-b-p{background:#534ab7;color:#fff!important;text-decoration:none;font-size:14px;font-weight:600;padding:8px 16px;border-radius:8px;line-height:1.3}'
+			. '.ocpz-banner .ocpz-b-p:hover{background:#3c3489}'
+			. '.ocpz-banner .ocpz-b-g{color:#3c3489!important;background:#fff;border:1px solid #d9d4f5;text-decoration:none;font-size:14px;font-weight:600;padding:7px 14px;border-radius:8px;line-height:1.3}'
+			. '.ocpz-banner .ocpz-b-g:hover{background:#f3f1fc}'
+			. '.ocpz-banner.ocpz-t-success{border-inline-start-color:#15803d!important}.ocpz-banner.ocpz-t-success .ocpz-b-src{color:#15803d}.ocpz-banner.ocpz-t-success .ocpz-b-p{background:#15803d}'
+			. '.ocpz-banner.ocpz-t-warning{border-inline-start-color:#b45309!important}.ocpz-banner.ocpz-t-warning .ocpz-b-src{color:#b45309}.ocpz-banner.ocpz-t-warning .ocpz-b-p{background:#b45309}'
+			. '.ocpz-banner .notice-dismiss{top:4px}'
+			. '@media(max-width:640px){.ocpz-banner{flex-direction:column}.ocpz-banner .ocpz-b-img{flex-basis:auto}.ocpz-banner .ocpz-b-img img{width:100%;height:150px;min-height:0}}'
+			. '</style>' . "\n";
 	}
 
 	/** Remember the dismissal for this user, for every OC plugin on the site. */
