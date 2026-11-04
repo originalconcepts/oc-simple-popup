@@ -125,6 +125,7 @@ class OSP_Notices {
 		self::styles();
 		foreach ( $list as $n ) {
 			$GLOBALS['ocpz_notices_shown'][ $n['id'] ] = true;
+
 			$dismiss = wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION . '&notice=' . rawurlencode( $n['id'] ) ), self::ACTION . '_' . $n['id'] );
 			$img     = isset( $n['image'] ) ? (string) $n['image'] : '';
 			$brand   = isset( $n['brand'] ) ? (string) $n['brand'] : '';
