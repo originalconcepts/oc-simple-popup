@@ -130,7 +130,7 @@ class OSP_Notices {
 			$img     = isset( $n['image'] ) ? (string) $n['image'] : '';
 			$brand   = isset( $n['brand'] ) ? (string) $n['brand'] : '';
 			$style   = ( isset( $n['style'] ) && 'dark' === $n['style'] ) ? 'dark' : 'light';
-			echo '<div class="notice ocpz-notice ocpz-banner ocpz-s-' . $style . ' ocpz-t-' . esc_attr( $n['type'] ) . ' is-dismissible" data-ocpz-dismiss="' . esc_url( $dismiss ) . '">';
+			echo '<div class="notice ocpz-notice ocpz-banner ocpz-s-' . esc_attr( $style ) . ' ocpz-t-' . esc_attr( $n['type'] ) . ' is-dismissible" data-ocpz-dismiss="' . esc_url( $dismiss ) . '">';
 			if ( '' !== $img ) {
 				// The image lives on the hub; if it cannot load, the square goes and the text takes the width.
 				echo '<div class="ocpz-b-im"><img src="' . esc_url( $img ) . '" alt="" loading="lazy" onerror="this.parentNode.style.display=\'none\'" /></div>';
