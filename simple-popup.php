@@ -3,7 +3,7 @@
  * Plugin Name: OC Popup (פופ אפ פשוט)
  * Plugin URI: https://github.com/originalconcepts/oc-simple-popup
  * Description: תוסף פופ אפ פשוט — תמונה או מוצרים, בחירת עמודים בחיפוש, קוקי לשליטה בתדירות.
- * Version: 1.10.6
+ * Version: 1.11.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author: OC Pluginz
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // The suite's shared admin chrome (one "OC Pluginz" menu for every OC plugin on the site); the newest bundled copy wins.
 require_once __DIR__ . '/oc-pluginz/loader.php';
 
-define( 'OSP_VERSION', '1.10.6' );
+define( 'OSP_VERSION', '1.11.0' );
 define( 'OSP_BASENAME', plugin_basename( __FILE__ ) );
 
 require_once __DIR__ . '/includes/hub/class-osp-hub.php';
@@ -130,6 +130,7 @@ class OSP_Simple_Popup {
 			'exclude'         => array(),
 			'device'          => 'both',
 			'cookie_days'     => 1,
+			'chain_next'      => '0',
 			'size'            => 'auto',
 			'max_width'       => 600,
 			'bg_color'        => '#ffffff',
@@ -429,6 +430,15 @@ class OSP_Simple_Popup {
 			<p class="description">לאחר סגירת הפופ אפ הוא לא יוצג שוב לאותו גולש למשך מספר הימים שנקבע (ברירת מחדל: יום אחד. 0 = יוצג בכל טעינה).</p>
 		</div>
 
+		<div class="osp-field">
+			<label class="osp-label">כמה פופ אפים באתר</label>
+			<p style="margin:0 0 8px">
+				סדר הצגה: <input type="number" name="osp[order]" value="<?php echo (int) $post->menu_order; ?>" min="0" max="999" style="width:80px">
+			</p>
+			<label><input type="checkbox" name="osp[chain_next]" value="1" <?php checked( $m['chain_next'], '1' ); ?>> אחרי שסוגרים את הפופ אפ הזה, להציג מיד את הפופ אפ הבא בתור</label>
+			<p class="description">בכל טעינת עמוד מוצג פופ אפ אחד: הראשון לפי סדר ההצגה (מספר קטן קודם, ובמספר זהה — הישן קודם) שהגולש עוד לא סגר. כשהאפשרות מסומנת, סגירה (איקס, לחיצה מחוץ לפופ אפ, Esc או כפתור בלי קישור) פותחת את הפופ אפ הבא בתור שמתאים לעמוד ולמכשיר. כדי להציג שלושה ברצף, מסמנים את האפשרות בראשון ובשני.</p>
+		</div>
+
 		</div><!-- /panel settings -->
 
 		<!-- ================= טאב עיצוב ================= -->
@@ -592,6 +602,9 @@ class OSP_Simple_Popup {
 		}
 		$active              = isset( $_POST['osp']['active'] ) && '1' === $_POST['osp']['active'];
 		$data['post_status'] = $active ? 'publish' : 'draft';
+		if ( isset( $_POST['osp']['order'] ) ) {
+			$data['menu_order'] = min( 999, absint( $_POST['osp']['order'] ) ); // display order on the site (render_popups sorts by it)
+		}
 		return $data;
 	}
 
@@ -644,6 +657,7 @@ class OSP_Simple_Popup {
 			'exclude'         => isset( $in['exclude'] ) && is_array( $in['exclude'] ) ? array_values( array_filter( array_map( 'absint', $in['exclude'] ) ) ) : array(),
 			'device'          => $device,
 			'cookie_days'     => isset( $in['cookie_days'] ) ? min( 365, absint( $in['cookie_days'] ) ) : 1,
+			'chain_next'      => ( isset( $in['chain_next'] ) && '1' === $in['chain_next'] ) ? '1' : '0',
 			'size'            => ( isset( $in['size'] ) && 'custom' === $in['size'] ) ? 'custom' : 'auto',
 			'max_width'       => isset( $in['max_width'] ) ? max( 200, min( 2000, absint( $in['max_width'] ) ) ) : 600,
 			'bg_color'        => $hex( 'bg_color', '#ffffff' ),
@@ -1149,7 +1163,7 @@ JS;
 			. ' osp-close--' . ( 'dark' === $m['close_style'] ? 'dark' : 'light' );
 		$device = in_array( $m['device'], array( 'desktop', 'mobile' ), true ) ? $m['device'] : 'both';
 		?>
-		<div class="osp-overlay" data-popup="<?php echo (int) $popup->ID; ?>" data-days="<?php echo (int) $m['cookie_days']; ?>" data-device="<?php echo esc_attr( $device ); ?>" data-expires="<?php echo (int) self::expiry_ts( $m ); ?>" role="dialog" aria-modal="true" aria-hidden="true">
+		<div class="osp-overlay" data-popup="<?php echo (int) $popup->ID; ?>" data-days="<?php echo (int) $m['cookie_days']; ?>" data-device="<?php echo esc_attr( $device ); ?>" data-expires="<?php echo (int) self::expiry_ts( $m ); ?>" data-next="<?php echo '1' === $m['chain_next'] ? '1' : '0'; ?>" role="dialog" aria-modal="true" aria-hidden="true">
 			<div class="<?php echo esc_attr( $box_classes ); ?>" style="<?php echo esc_attr( $style ); ?>">
 				<button type="button" class="<?php echo esc_attr( $close_classes ); ?>" aria-label="סגירה">&times;</button>
 				<?php if ( $m['title'] ) : ?>
@@ -1270,6 +1284,7 @@ JS;
 				}
 				document.cookie = name + '=1;path=/' + ex + ';SameSite=Lax';
 			}
+			var queue = []; // the popups this visitor may see on this page, in display order
 			function init(){
 				var isMobile = window.matchMedia('(max-width: 768px)').matches;
 				var nowSec = Math.floor(Date.now() / 1000);
@@ -1281,24 +1296,38 @@ JS;
 					var device = ov.getAttribute('data-device') || 'both';
 					if (device === 'desktop' && isMobile) { continue; }
 					if (device === 'mobile' && !isMobile) { continue; }
-					var name = 'osp_popup_' + ov.getAttribute('data-popup');
+					queue.push(ov);
+				}
+				showFrom(0);
+			}
+			// One popup at a time: the first in the queue from `from` on that the visitor has not closed.
+			// The next one opens only when a popup marked data-next="1" is closed (see doClose).
+			function showFrom(from){
+				for (var i = from; i < queue.length; i++) {
+					var name = 'osp_popup_' + queue[i].getAttribute('data-popup');
 					if (getCookie(name)) { continue; }
-					open(ov, name);
-					break; // show only one popup per page load
+					open(queue[i], name, i);
+					return;
 				}
 			}
-			function open(ov, cookieName){
+			function open(ov, cookieName, index){
 				var id = ov.getAttribute('data-popup');
 				ov.classList.add('osp-open');
 				ov.setAttribute('aria-hidden', 'false');
 				track(id, 'view');
 				var days = parseInt(ov.getAttribute('data-days'), 10) || 0;
+				var closed = false;
 				function doClose(sendClose){
+					if (closed) { return; }
+					closed = true;
 					ov.classList.remove('osp-open');
 					ov.setAttribute('aria-hidden', 'true');
 					setCookie(cookieName, days);
 					if (sendClose) { track(id, 'close'); }
 					document.removeEventListener('keydown', onKey);
+					if (ov.getAttribute('data-next') === '1') {
+						setTimeout(function(){ showFrom(index + 1); }, 350); // a short pause so the next one does not read as a flicker
+					}
 				}
 				function close(){ doClose(true); }
 				function onKey(e){ if (e.key === 'Escape') { close(); } }
