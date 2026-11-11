@@ -3,7 +3,7 @@
  * Plugin Name: OC Popup (פופ אפ פשוט)
  * Plugin URI: https://github.com/originalconcepts/oc-simple-popup
  * Description: תוסף פופ אפ פשוט — תמונה או מוצרים, בחירת עמודים בחיפוש, קוקי לשליטה בתדירות.
- * Version: 1.11.0
+ * Version: 1.12.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author: OC Pluginz
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // The suite's shared admin chrome (one "OC Pluginz" menu for every OC plugin on the site); the newest bundled copy wins.
 require_once __DIR__ . '/oc-pluginz/loader.php';
 
-define( 'OSP_VERSION', '1.11.0' );
+define( 'OSP_VERSION', '1.12.0' );
 define( 'OSP_BASENAME', plugin_basename( __FILE__ ) );
 
 require_once __DIR__ . '/includes/hub/class-osp-hub.php';
@@ -129,6 +129,7 @@ class OSP_Simple_Popup {
 			'pages'           => array(),
 			'exclude'         => array(),
 			'device'          => 'both',
+			'freq'            => '',
 			'cookie_days'     => 1,
 			'chain_next'      => '0',
 			'size'            => 'auto',
@@ -159,6 +160,13 @@ class OSP_Simple_Popup {
 		$meta['products'] = is_array( $meta['products'] ) ? $meta['products'] : array();
 		$meta['pages']    = is_array( $meta['pages'] ) ? $meta['pages'] : array();
 		$meta['exclude']  = is_array( $meta['exclude'] ) ? $meta['exclude'] : array();
+		// Popups saved before 1.12.0 have no freq: "0 days" always meant a cookie that lasts until the browser closes.
+		if ( ! in_array( $meta['freq'], array( 'load', 'session', 'days' ), true ) ) {
+			$meta['freq'] = (int) $meta['cookie_days'] > 0 ? 'days' : 'session';
+		}
+		if ( 'days' === $meta['freq'] && (int) $meta['cookie_days'] < 1 ) {
+			$meta['cookie_days'] = 1;
+		}
 		return $meta;
 	}
 
@@ -425,9 +433,14 @@ class OSP_Simple_Popup {
 		</div>
 
 		<div class="osp-field">
-			<label class="osp-label">קוקי — הצגה חוזרת</label>
-			<input type="number" name="osp[cookie_days]" value="<?php echo (int) $m['cookie_days']; ?>" min="0" max="365" style="width:80px"> ימים
-			<p class="description">לאחר סגירת הפופ אפ הוא לא יוצג שוב לאותו גולש למשך מספר הימים שנקבע (ברירת מחדל: יום אחד. 0 = יוצג בכל טעינה).</p>
+			<label class="osp-label">אחרי שגולש סגר את הפופ אפ — מתי להציג לו שוב</label>
+			<label style="display:block;margin-bottom:6px"><input type="radio" name="osp[freq]" value="load" <?php checked( $m['freq'], 'load' ); ?>> בכל טעינת עמוד</label>
+			<label style="display:block;margin-bottom:6px"><input type="radio" name="osp[freq]" value="session" <?php checked( $m['freq'], 'session' ); ?>> בביקור הבא (אחרי סגירת הדפדפן)</label>
+			<label style="display:block"><input type="radio" name="osp[freq]" value="days" <?php checked( $m['freq'], 'days' ); ?>> אחרי מספר ימים</label>
+			<p class="osp-freq-days <?php echo 'days' === $m['freq'] ? '' : 'osp-hidden'; ?>" style="margin:8px 0 0">
+				<input type="number" name="osp[cookie_days]" value="<?php echo (int) $m['cookie_days']; ?>" min="1" max="365" style="width:80px"> ימים
+			</p>
+			<p class="description">בכל טעינת עמוד — הפופ אפ חוזר בכל עמוד שהגולש פותח, גם אם סגר אותו. בביקור הבא — לא יחזור עד שהגולש יסגור את הדפדפן (דפדפן שמשחזר את הלשוניות בפתיחה עשוי לזכור גם את זה). אחרי מספר ימים — לא יחזור לאותו גולש עד שיעברו הימים שנקבעו.</p>
 		</div>
 
 		<div class="osp-field">
@@ -656,7 +669,8 @@ class OSP_Simple_Popup {
 			'pages'           => isset( $in['pages'] ) && is_array( $in['pages'] ) ? array_values( array_filter( array_map( 'absint', $in['pages'] ) ) ) : array(),
 			'exclude'         => isset( $in['exclude'] ) && is_array( $in['exclude'] ) ? array_values( array_filter( array_map( 'absint', $in['exclude'] ) ) ) : array(),
 			'device'          => $device,
-			'cookie_days'     => isset( $in['cookie_days'] ) ? min( 365, absint( $in['cookie_days'] ) ) : 1,
+			'freq'            => ( isset( $in['freq'] ) && in_array( $in['freq'], array( 'load', 'session', 'days' ), true ) ) ? $in['freq'] : 'days',
+			'cookie_days'     => isset( $in['cookie_days'] ) ? max( 1, min( 365, absint( $in['cookie_days'] ) ) ) : 1,
 			'chain_next'      => ( isset( $in['chain_next'] ) && '1' === $in['chain_next'] ) ? '1' : '0',
 			'size'            => ( isset( $in['size'] ) && 'custom' === $in['size'] ) ? 'custom' : 'auto',
 			'max_width'       => isset( $in['max_width'] ) ? max( 200, min( 2000, absint( $in['max_width'] ) ) ) : 600,
@@ -981,6 +995,9 @@ jQuery(function($){
 		pvFull();
 	});
 	$('#osp-in-imagefull').on('change', pvFull);
+	$('input[name="osp[freq]"]').on('change', function(){
+		$('.osp-freq-days').toggleClass('osp-hidden', this.value !== 'days');
+	});
 	$('#osp-in-schedon').on('change', function(){
 		$('.osp-sched-field').toggleClass('osp-hidden', !this.checked);
 	});
@@ -1163,7 +1180,7 @@ JS;
 			. ' osp-close--' . ( 'dark' === $m['close_style'] ? 'dark' : 'light' );
 		$device = in_array( $m['device'], array( 'desktop', 'mobile' ), true ) ? $m['device'] : 'both';
 		?>
-		<div class="osp-overlay" data-popup="<?php echo (int) $popup->ID; ?>" data-days="<?php echo (int) $m['cookie_days']; ?>" data-device="<?php echo esc_attr( $device ); ?>" data-expires="<?php echo (int) self::expiry_ts( $m ); ?>" data-next="<?php echo '1' === $m['chain_next'] ? '1' : '0'; ?>" role="dialog" aria-modal="true" aria-hidden="true">
+		<div class="osp-overlay" data-popup="<?php echo (int) $popup->ID; ?>" data-freq="<?php echo esc_attr( $m['freq'] ); ?>" data-days="<?php echo 'days' === $m['freq'] ? (int) $m['cookie_days'] : 0; ?>" data-device="<?php echo esc_attr( $device ); ?>" data-expires="<?php echo (int) self::expiry_ts( $m ); ?>" data-next="<?php echo '1' === $m['chain_next'] ? '1' : '0'; ?>" role="dialog" aria-modal="true" aria-hidden="true">
 			<div class="<?php echo esc_attr( $box_classes ); ?>" style="<?php echo esc_attr( $style ); ?>">
 				<button type="button" class="<?php echo esc_attr( $close_classes ); ?>" aria-label="סגירה">&times;</button>
 				<?php if ( $m['title'] ) : ?>
@@ -1305,7 +1322,7 @@ JS;
 			function showFrom(from){
 				for (var i = from; i < queue.length; i++) {
 					var name = 'osp_popup_' + queue[i].getAttribute('data-popup');
-					if (getCookie(name)) { continue; }
+					if (queue[i].getAttribute('data-freq') !== 'load' && getCookie(name)) { continue; }
 					open(queue[i], name, i);
 					return;
 				}
@@ -1316,13 +1333,15 @@ JS;
 				ov.setAttribute('aria-hidden', 'false');
 				track(id, 'view');
 				var days = parseInt(ov.getAttribute('data-days'), 10) || 0;
+				// "every page load" keeps no cookie; "session" is a cookie without expiry (days 0); "days" expires after N days.
+				var remember = ov.getAttribute('data-freq') === 'load' ? function(){} : function(){ setCookie(cookieName, days); };
 				var closed = false;
 				function doClose(sendClose){
 					if (closed) { return; }
 					closed = true;
 					ov.classList.remove('osp-open');
 					ov.setAttribute('aria-hidden', 'true');
-					setCookie(cookieName, days);
+					remember();
 					if (sendClose) { track(id, 'close'); }
 					document.removeEventListener('keydown', onKey);
 					if (ov.getAttribute('data-next') === '1') {
@@ -1344,7 +1363,7 @@ JS;
 						});
 					} else {
 						links[j].addEventListener('click', function(){
-							setCookie(cookieName, days);
+							remember();
 							track(id, 'click');
 						});
 					}
